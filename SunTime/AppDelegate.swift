@@ -56,7 +56,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 	private var publishSubjectBag = DisposeBag()
 	private var locationBag = DisposeBag()
 	
-	func getTimes() {
+	private func getTimes() {
 		
 		let combined = Observable.combineLatest(self.locationSubject.asObservable(), self.updateSubject.asObservable().startWith(true)) { ($0, $1) }
 		combined.debounce(1.0, scheduler: MainScheduler.instance).flatMap {[unowned self] (location, update) -> Observable<DateResult> in
@@ -89,7 +89,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 		self.locationManager.startUpdatingLocation()
 	}
 	
-	func updateStatusItemFrom(sunrise: Date, sunset: Date) -> Date {
+	private func updateStatusItemFrom(sunrise: Date, sunset: Date) -> Date {
 		
 		if sunrise > Date() {
 			let sunriseString = self.humanDateFormatter.string(from: sunrise)
@@ -105,7 +105,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 		return Date()
 	}
 	
-	func sunriseSunsetJSONObservable(for location: CLLocation) -> Observable<Any> {
+	private func sunriseSunsetJSONObservable(for location: CLLocation) -> Observable<Any> {
 		
 		let lat = location.coordinate.latitude
 		let long = location.coordinate.longitude
