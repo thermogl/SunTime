@@ -7,8 +7,6 @@ fileprivate typealias DateResult = (sunrise: Date, sunset: Date)
 
 @NSApplicationMain
 class AppDelegate: NSObject, NSApplicationDelegate {
-
-	@IBOutlet weak var window: NSWindow!
 	
 	private lazy var statusItem: NSStatusItem = {
 		let statusItem = NSStatusBar.system().statusItem(withLength: NSVariableStatusItemLength)
