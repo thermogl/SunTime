@@ -25,6 +25,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 	private lazy var locationManager: CLLocationManager = {
 		let locationManager = CLLocationManager()
 		locationManager.delegate = self
+		locationManager.distanceFilter = 1000
 		return locationManager
 	}()
 	
@@ -66,7 +67,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 	private func getTimes() {
 		
 		let locationObservable = self.locationSubject.asObservable()
-		let dateObservable = self.dateSubject.asObservable().startWith(Date())
+		let dateObservable = self.dateSubject.asObservable().startWith(Date()).do(onNext: {[unowned self] _ in
+			self.locationManager.startUpdatingLocation()
+		})
 		
 		let combined = Observable.combineLatest(locationObservable, dateObservable) { ($0, $1) }
 		combined.debounce(1.0, scheduler: MainScheduler.instance).flatMap {[unowned self] (location, date) -> Observable<DateResult> in
@@ -90,6 +93,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 		}
 		.observeOn(MainScheduler.instance)
 		.subscribe(onNext: {[unowned self] result in
+			
+			self.locationManager.stopUpdatingLocation()
 			
 			let relevantDate = self.updateStatusItemFrom(sunrise: result.sunrise, sunset: result.sunset)
 			let now = Date()
@@ -115,8 +120,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 			}
 			
 		}).addDisposableTo(self.locationBag)
-		
-		self.locationManager.startUpdatingLocation()
 	}
 	
 	private func updateStatusItemFrom(sunrise: Date, sunset: Date) -> Date {
@@ -152,5 +155,4 @@ extension AppDelegate: CLLocationManagerDelegate {
 		guard let lastLocation = locations.last else { return }
 		self.locationSubject.onNext(lastLocation)
 	}
-
 }
