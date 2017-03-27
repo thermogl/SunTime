@@ -41,12 +41,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 		return formatter
 	}()
 	
+	private lazy var requestFormatter: DateFormatter = {
+		let formatter = DateFormatter()
+		formatter.locale = Locale(identifier: "en_US_POSIX")
+		formatter.dateFormat = "yyyy-MM-dd"
+		return formatter
+	}()
+	
 	fileprivate lazy var locationSubject: PublishSubject<CLLocation> = {
 		return PublishSubject<CLLocation>()
 	}()
 	
-	fileprivate lazy var updateSubject: PublishSubject<Bool> = {
-		return PublishSubject<Bool>()
+	fileprivate lazy var dateSubject: PublishSubject<Date?> = {
+		return PublishSubject<Date?>()
 	}()
 
 	func applicationDidFinishLaunching(_ aNotification: Notification) {
@@ -58,9 +65,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 	
 	private func getTimes() {
 		
-		let combined = Observable.combineLatest(self.locationSubject.asObservable(), self.updateSubject.asObservable().startWith(true)) { ($0, $1) }
-		combined.debounce(1.0, scheduler: MainScheduler.instance).flatMap {[unowned self] (location, update) -> Observable<DateResult> in
-			return self.sunriseSunsetJSONObservable(for: location).flatMap { json  -> Observable<DateResult> in
+		let locationObservable = self.locationSubject.asObservable()
+		let dateObservable = self.dateSubject.asObservable().startWith(Date())
+		
+		let combined = Observable.combineLatest(locationObservable, dateObservable) { ($0, $1) }
+		combined.debounce(1.0, scheduler: MainScheduler.instance).flatMap {[unowned self] (location, date) -> Observable<DateResult> in
+			
+			guard let date = date else { return .empty() }
+			
+			return self.sunriseSunsetJSONObservable(for: location, date: date).flatMap { json  -> Observable<DateResult> in
 				
 				guard let json = json as? [String: Any] else { return .empty() }
 				guard let results = json["results"] as? [String: Any] else { return .empty() }
@@ -75,13 +88,30 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 				return .just(result)
 			}
 		}
+		.observeOn(MainScheduler.instance)
 		.subscribe(onNext: {[unowned self] result in
 			
 			let relevantDate = self.updateStatusItemFrom(sunrise: result.sunrise, sunset: result.sunset)
+			let now = Date()
+			let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: now)
 			
-			let timeUntilNextEvent = relevantDate.timeIntervalSinceNow + 10
-			DispatchQueue.main.asyncAfter(deadline: .now() + timeUntilNextEvent) {
-				self.updateSubject.onNext(true)
+			let timeUntilNextEvent = relevantDate.timeIntervalSinceNow
+			
+			if timeUntilNextEvent < 0 {
+				self.dateSubject.onNext(tomorrow)
+			}
+			else {
+				
+				var nextDate = now
+				if relevantDate == result.sunset {
+					if let tomorrow = tomorrow {
+						nextDate = tomorrow
+					}
+				}
+				
+				DispatchQueue.main.asyncAfter(deadline: .now() + timeUntilNextEvent + 10) {
+					self.dateSubject.onNext(nextDate)
+				}
 			}
 			
 		}).addDisposableTo(self.locationBag)
@@ -96,21 +126,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 			self.statusItem.title = "☀️ \(sunriseString)"
 			return sunrise
 		}
-		else if sunset > Date() {
+		else {
 			let sunsetString = self.humanDateFormatter.string(from: sunset)
 			self.statusItem.title = "🌑 \(sunsetString)"
 			return sunset
 		}
-		
-		return Date()
 	}
 	
-	private func sunriseSunsetJSONObservable(for location: CLLocation) -> Observable<Any> {
+	private func sunriseSunsetJSONObservable(for location: CLLocation, date: Date) -> Observable<Any> {
 		
 		let lat = location.coordinate.latitude
 		let long = location.coordinate.longitude
 		
-		let urlString = "http://api.sunrise-sunset.org/json?lat=\(lat)&lng=\(long)&date=today&formatted=0"
+		let dateString = self.requestFormatter.string(from: date)
+		let urlString = "http://api.sunrise-sunset.org/json?lat=\(lat)&lng=\(long)&date=\(dateString)&formatted=0"
 		guard let url = URL(string: urlString) else { return .empty() }
 		let request = URLRequest(url: url)
 		return self.session.rx.json(request: request)
