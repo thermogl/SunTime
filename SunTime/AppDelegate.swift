@@ -12,6 +12,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 		let statusItem = NSStatusBar.system().statusItem(withLength: NSVariableStatusItemLength)
 		
 		let statusItemMenu = NSMenu()
+		statusItemMenu.addItem(withTitle: "Refresh", action: #selector(getTimes), keyEquivalent: "r").target = self
+		statusItemMenu.addItem(NSMenuItem.separator())
 		statusItemMenu.addItem(withTitle: "Quit", action: #selector(NSApp.terminate(_:)), keyEquivalent: "q").target = NSApp
 		statusItem.menu = statusItemMenu
 		
@@ -64,7 +66,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 	private var publishSubjectBag = DisposeBag()
 	private var locationBag = DisposeBag()
 	
-	private func getTimes() {
+	@objc private func getTimes() {
 		
 		let locationObservable = self.locationSubject.asObservable()
 		let dateObservable = self.dateSubject.asObservable().startWith(Date()).do(onNext: {[unowned self] _ in
