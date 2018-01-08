@@ -109,16 +109,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 			}
 			else {
 				
-				var nextDate = now
+				var nextDate = relevantDate
 				if relevantDate == result.sunset {
 					if let tomorrow = tomorrow {
 						nextDate = tomorrow
 					}
 				}
 				
-				DispatchQueue.main.asyncAfter(deadline: .now() + timeUntilNextEvent + 10) {
+				let timer = Timer(fire: nextDate, interval: 0.0, repeats: false) {[unowned self] _ in
 					self.dateSubject.onNext(nextDate)
 				}
+				
+				RunLoop.current.add(timer, forMode: .commonModes)
 			}
 			
 		}).addDisposableTo(self.locationBag)
